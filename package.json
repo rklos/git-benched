@@ -1,0 +1,45 @@
+{
+  "name": "git-benched",
+  "displayName": "Git Benched",
+  "description": "Organize your working tree changes into named changelists, inspired by IntelliJ IDEA's Changelists feature.",
+  "version": "0.0.1",
+  "publisher": "git-benched",
+  "engines": {
+    "vscode": ">=1.116.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "changelists",
+    "intellij",
+    "scm"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {},
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@rklos/eslint-config": "3.1.5",
+    "@types/node": "25.6.0",
+    "@types/vscode": "1.116.0",
+    "@typescript-eslint/parser": "8.58.2",
+    "@vitest/coverage-v8": "4.1.4",
+    "@vitest/eslint-plugin": "1.6.16",
+    "eslint": "10.2.0",
+    "eslint-import-resolver-typescript": "4.4.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.58.2",
+    "vitest": "4.1.4"
+  }
+}
