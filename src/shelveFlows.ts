@@ -1,6 +1,6 @@
 import type { BenchId, HunkRef } from './types';
 import type { BenchStore } from './benchStore';
-import type { ShelveService, ShelfHeader } from './shelveService';
+import type { ShelveService, ShelfHeader, PatchDescriptor } from './shelveService';
 import type { GitOperations } from './gitOperations';
 import { parseHunks, hunkIdFromPatch, type HunkPatch } from './hunkParser';
 
@@ -95,4 +95,47 @@ export async function shelveHunks(
   );
 
   return refs;
+}
+
+export interface UnshelveResult {
+  benchId: BenchId;
+  appliedCount: number;
+  conflicts: Array<{ filePath: string; hunkId: string; shelfPath: string }>;
+}
+
+export async function unshelveBench(
+  benchId: BenchId,
+  deps: {
+    store: BenchStore;
+    shelve: ShelveService;
+    git: GitOperations;
+  },
+): Promise<UnshelveResult> {
+  const descriptors: PatchDescriptor[] = await deps.shelve.listPatches(benchId);
+  const conflicts: UnshelveResult['conflicts'] = [];
+
+  // Sequential application: each apply mutates the working tree.
+  // Use Promise-reduce pattern to stay sequential + lint-friendly.
+  const applied = await descriptors.reduce<Promise<number>>(
+    async (accPromise, descriptor) => {
+      const count = await accPromise;
+      const patchBody = await deps.shelve.readPatchBody(descriptor);
+      try {
+        await deps.git.apply(patchBody, { threeWay: true });
+        await deps.shelve.deletePatch(descriptor);
+        deps.store.removeHunk(benchId, descriptor.filePath, descriptor.hunkId);
+        return count + 1;
+      } catch {
+        conflicts.push({
+          filePath: descriptor.filePath,
+          hunkId: descriptor.hunkId,
+          shelfPath: descriptor.shelfPath,
+        });
+        return count;
+      }
+    },
+    Promise.resolve(0),
+  );
+
+  return { benchId, appliedCount: applied, conflicts };
 }
