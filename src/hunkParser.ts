@@ -31,89 +31,72 @@ export function parseHunks(diffOutput: string): HunkPatch[] {
 
     const diffHeaderMatch = DIFF_HEADER_RE.exec(line);
     if (diffHeaderMatch) {
-      currentFile = diffHeaderMatch[2];
+      const [ , , filePath ] = diffHeaderMatch;
+      currentFile = filePath;
       oldBlob = '';
       newBlob = '';
       fileStatus = 'modified';
       renamedFrom = undefined;
       fileHeader = [ line ];
-      continue;
-    }
+    } else if (currentFile === null) {
+      // Skip lines before we have a current file
+    } else {
+      const indexMatch = INDEX_RE.exec(line);
+      if (indexMatch) {
+        const [ , blob1, blob2 ] = indexMatch;
+        oldBlob = blob1;
+        newBlob = blob2;
+        fileHeader.push(line);
+      } else if (line.startsWith('new file mode')) {
+        fileStatus = 'untracked';
+        fileHeader.push(line);
+      } else if (line.startsWith('deleted file mode')) {
+        fileStatus = 'deleted';
+        fileHeader.push(line);
+      } else if (line.startsWith('rename from ')) {
+        fileStatus = 'renamed';
+        renamedFrom = line.slice('rename from '.length);
+        fileHeader.push(line);
+      } else if (line.startsWith('rename to ') || line.startsWith('similarity index ')) {
+        fileHeader.push(line);
+      } else if (line.startsWith('--- ') || line.startsWith('+++ ')) {
+        fileHeader.push(line);
+      } else {
+        const hunkMatch = HUNK_RE.exec(line);
+        if (hunkMatch) {
+          const lineRange: LineRange = {
+            startOld: parseInt(hunkMatch[1], 10),
+            countOld: hunkMatch[2] !== undefined ? parseInt(hunkMatch[2], 10) : 1,
+            startNew: parseInt(hunkMatch[3], 10),
+            countNew: hunkMatch[4] !== undefined ? parseInt(hunkMatch[4], 10) : 1,
+          };
 
-    if (currentFile === null) {
-      continue;
-    }
+          const bodyLines: string[] = [ line ];
+          let j = i + 1;
+          while (j < lines.length) {
+            const next = lines[j];
+            if (DIFF_HEADER_RE.test(next) || HUNK_RE.test(next)) {
+              break;
+            }
+            bodyLines.push(next);
+            j++;
+          }
 
-    const indexMatch = INDEX_RE.exec(line);
-    if (indexMatch) {
-      oldBlob = indexMatch[1];
-      newBlob = indexMatch[2];
-      fileHeader.push(line);
-      continue;
-    }
+          const patchContent = [ ...fileHeader, ...bodyLines ].join('\n');
 
-    if (line.startsWith('new file mode')) {
-      fileStatus = 'untracked';
-      fileHeader.push(line);
-      continue;
-    }
+          results.push({
+            filePath: currentFile,
+            oldBlob,
+            newBlob,
+            fileStatus,
+            lineRange,
+            patchContent,
+            renamedFrom,
+          });
 
-    if (line.startsWith('deleted file mode')) {
-      fileStatus = 'deleted';
-      fileHeader.push(line);
-      continue;
-    }
-
-    if (line.startsWith('rename from ')) {
-      fileStatus = 'renamed';
-      renamedFrom = line.slice('rename from '.length);
-      fileHeader.push(line);
-      continue;
-    }
-
-    if (line.startsWith('rename to ') || line.startsWith('similarity index ')) {
-      fileHeader.push(line);
-      continue;
-    }
-
-    if (line.startsWith('--- ') || line.startsWith('+++ ')) {
-      fileHeader.push(line);
-      continue;
-    }
-
-    const hunkMatch = HUNK_RE.exec(line);
-    if (hunkMatch) {
-      const lineRange: LineRange = {
-        startOld: parseInt(hunkMatch[1], 10),
-        countOld: hunkMatch[2] !== undefined ? parseInt(hunkMatch[2], 10) : 1,
-        startNew: parseInt(hunkMatch[3], 10),
-        countNew: hunkMatch[4] !== undefined ? parseInt(hunkMatch[4], 10) : 1,
-      };
-
-      const bodyLines: string[] = [ line ];
-      let j = i + 1;
-      while (j < lines.length) {
-        const next = lines[j];
-        if (DIFF_HEADER_RE.test(next) || HUNK_RE.test(next)) {
-          break;
+          i = j - 1;
         }
-        bodyLines.push(next);
-        j++;
       }
-
-      const patchContent = [ ...fileHeader, ...bodyLines ].join('\n');
-
-      results.push({
-        filePath: currentFile,
-        oldBlob,
-        newBlob,
-        fileStatus,
-        lineRange,
-        patchContent,
-        renamedFrom,
-      });
-
-      i = j - 1;
     }
   }
 
