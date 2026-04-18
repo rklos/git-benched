@@ -63,3 +63,29 @@ describe('BenchStore CRUD', () => {
     expect(events).toEqual([ 'bench-created', 'bench-renamed', 'bench-deleted' ]);
   });
 });
+
+describe('BenchStore active switching', () => {
+  it('changes the active bench and emits active-changed', () => {
+    const store = new BenchStore(undefined, '/r');
+    const b = store.createBench('Feature A');
+    const events: string[] = [];
+    store.onChange((e) => events.push(e.type));
+    store.setActiveBench(b.id);
+    expect(store.getActiveBench().id).toBe(b.id);
+    expect(events).toContain('active-changed');
+  });
+
+  it('does nothing if target is already active', () => {
+    const store = new BenchStore(undefined, '/r');
+    const events: string[] = [];
+    const activeId = store.getActiveBench().id;
+    store.onChange((e) => events.push(e.type));
+    store.setActiveBench(activeId);
+    expect(events).toHaveLength(0);
+  });
+
+  it('throws when setting a nonexistent bench active', () => {
+    const store = new BenchStore(undefined, '/r');
+    expect(() => store.setActiveBench('nope')).toThrow();
+  });
+});

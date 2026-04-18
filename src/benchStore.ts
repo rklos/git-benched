@@ -87,6 +87,16 @@ export class BenchStore {
     this.emit({ type: 'bench-deleted', benchId: id });
   }
 
+  public setActiveBench(id: BenchId): void {
+    if (!this.state.benches.has(id)) {
+      throw new Error(`Bench ${id} not found`);
+    }
+    if (this.state.activeBenchId === id) { return; }
+    const previous = this.state.activeBenchId;
+    this.state.activeBenchId = id;
+    this.emit({ type: 'active-changed', previous, next: id });
+  }
+
   public onChange(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
