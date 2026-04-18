@@ -148,3 +148,28 @@ describe('BenchStore hunks', () => {
     expect(events.filter((e) => e === 'hunks-changed')).toHaveLength(2);
   });
 });
+
+describe('BenchStore persistence', () => {
+  it('serializes and deserializes round-trip', () => {
+    const a = new BenchStore(undefined, '/r');
+    const def = a.getDefaultBench();
+    a.assignHunk(def.id, makeHunk('src/a.ts', 'h1'));
+    const b = a.createBench('X');
+    a.setActiveBench(b.id);
+
+    const serialized = a.serialize();
+    const copy = BenchStore.fromSerialized(serialized, '/r');
+
+    expect(copy.getBenches()).toHaveLength(2);
+    expect(copy.getActiveBench().name).toBe('X');
+    expect(copy.getDefaultBench().files.get('src/a.ts')).toHaveLength(1);
+  });
+
+  it('includes commit message drafts in the round-trip', () => {
+    const a = new BenchStore(undefined, '/r');
+    const def = a.getDefaultBench();
+    a.setCommitMessageDraft(def.id, 'WIP message');
+    const copy = BenchStore.fromSerialized(a.serialize(), '/r');
+    expect(copy.getDefaultBench().commitMessageDraft).toBe('WIP message');
+  });
+});

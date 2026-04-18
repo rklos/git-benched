@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   Bench, BenchId, BenchChangeEvent, StoreState, HunkRef, FilePath,
+  SerializedState,
 } from './types';
 
 type Listener = (event: BenchChangeEvent) => void;
@@ -152,6 +153,46 @@ export class BenchStore {
       })
       .find((x) => x !== undefined);
     return found;
+  }
+
+  public serialize(): SerializedState {
+    return {
+      schemaVersion: 1,
+      activeBenchId: this.state.activeBenchId,
+      benches: Array.from(this.state.benches.values()).map((b) => ({
+        id: b.id,
+        name: b.name,
+        isDefault: b.isDefault,
+        commitMessageDraft: b.commitMessageDraft,
+        createdAt: b.createdAt,
+        files: Array.from(b.files.entries()).map(([ path, hunks ]) => ({ path, hunks })),
+      })),
+    };
+  }
+
+  public static fromSerialized(serialized: SerializedState, repoPath: string): BenchStore {
+    const benches = new Map<BenchId, Bench>();
+    serialized.benches.forEach((sb) => {
+      benches.set(sb.id, {
+        id: sb.id,
+        name: sb.name,
+        isDefault: sb.isDefault,
+        commitMessageDraft: sb.commitMessageDraft,
+        createdAt: sb.createdAt,
+        files: new Map(sb.files.map((f) => [ f.path, f.hunks ])),
+      });
+    });
+    return new BenchStore(
+      { activeBenchId: serialized.activeBenchId, benches, repoPath },
+      repoPath,
+    );
+  }
+
+  public setCommitMessageDraft(id: BenchId, draft: string): void {
+    const bench = this.state.benches.get(id);
+    if (!bench) { return; }
+    bench.commitMessageDraft = draft.length > 0 ? draft : undefined;
+    this.emit({ type: 'draft-changed', benchId: id });
   }
 
   private emit(event: BenchChangeEvent): void {
