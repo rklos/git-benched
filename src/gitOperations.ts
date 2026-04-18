@@ -18,7 +18,10 @@ export interface ApplyOptions {
 }
 
 export class GitOperations {
-  public constructor(private readonly cwd: string) {}
+  public constructor(
+    private readonly cwd: string,
+    private readonly env: NodeJS.ProcessEnv = process.env,
+  ) {}
 
   public async diffHead(paths?: string[]): Promise<string> {
     const args = [ 'diff', '--binary', 'HEAD', '--' ];
@@ -89,7 +92,7 @@ export class GitOperations {
   }
 
   private async run(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    return runFile('git', args, { cwd: this.cwd, maxBuffer: 64 * 1024 * 1024 });
+    return runFile('git', args, { cwd: this.cwd, env: this.env, maxBuffer: 64 * 1024 * 1024 });
   }
 
   private async runWithFileInput(args: string[], body: string): Promise<void> {
@@ -97,7 +100,7 @@ export class GitOperations {
     const patchFile = join(tmp, 'in.patch');
     try {
       await writeFile(patchFile, body, 'utf8');
-      await runFile('git', [ ...args, patchFile ], { cwd: this.cwd });
+      await runFile('git', [ ...args, patchFile ], { cwd: this.cwd, env: this.env });
     } finally {
       await unlink(patchFile).catch(() => {
         // ignore error

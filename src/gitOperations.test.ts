@@ -7,6 +7,7 @@ import {
 } from 'vitest';
 import {
   mkdtempSync,
+  mkdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -15,15 +16,30 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { GitOperations } from './gitOperations';
 
+const ISOLATED_ENV: NodeJS.ProcessEnv = {
+  ...process.env,
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+  GPG_TTY: '',
+  HOME: '/tmp/git-benched-nohome',
+};
+
+// Ensure the isolated HOME directory exists
+try {
+  mkdirSync('/tmp/git-benched-nohome', { recursive: true });
+} catch {
+  // directory may already exist
+}
+
 function initRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'git-benched-test-'));
-  const env = { ...process.env, GIT_CREDENTIAL_HELPER: '' };
-  execFileSync('git', [ 'init', '-q', '-b', 'main' ], { cwd: dir, env });
-  execFileSync('git', [ 'config', 'user.email', 't@example.com' ], { cwd: dir, env });
-  execFileSync('git', [ 'config', 'user.name', 'Test' ], { cwd: dir, env });
+  execFileSync('git', [ 'init', '-q', '-b', 'main' ], { cwd: dir, env: ISOLATED_ENV });
+  execFileSync('git', [ 'config', 'user.email', 't@example.com' ], { cwd: dir, env: ISOLATED_ENV });
+  execFileSync('git', [ 'config', 'user.name', 'Test' ], { cwd: dir, env: ISOLATED_ENV });
   writeFileSync(join(dir, 'a.txt'), 'one\ntwo\nthree\n');
-  execFileSync('git', [ 'add', '-A' ], { cwd: dir, env });
-  execFileSync('git', [ 'commit', '-q', '-m', 'initial' ], { cwd: dir, env });
+  execFileSync('git', [ 'add', '-A' ], { cwd: dir, env: ISOLATED_ENV });
+  execFileSync('git', [ 'commit', '-q', '-m', 'initial' ], { cwd: dir, env: ISOLATED_ENV });
   return dir;
 }
 
@@ -33,7 +49,7 @@ describe('GitOperations', () => {
 
   beforeEach(() => {
     repoDir = initRepo();
-    git = new GitOperations(repoDir);
+    git = new GitOperations(repoDir, ISOLATED_ENV);
   });
 
   afterEach(() => {
