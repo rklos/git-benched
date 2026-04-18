@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
+import type { HunkRef } from './types';
 import { BenchStore } from './benchStore';
+
+function makeHunk(path: string, hunkId: string): HunkRef {
+  return {
+    hunkId,
+    filePath: path,
+    shelfPath: `/tmp/${hunkId}.patch`,
+    preview: '',
+    lineRange: { startOld: 1, countOld: 1, startNew: 1, countNew: 1 },
+    fileStatus: 'modified',
+  };
+}
 
 describe('BenchStore construction', () => {
   it('creates a Default Bench when initialized with no prior state', () => {
@@ -87,5 +99,52 @@ describe('BenchStore active switching', () => {
   it('throws when setting a nonexistent bench active', () => {
     const store = new BenchStore(undefined, '/r');
     expect(() => store.setActiveBench('nope')).toThrow();
+  });
+});
+
+describe('BenchStore hunks', () => {
+  it('assigns a hunk to a bench', () => {
+    const store = new BenchStore(undefined, '/r');
+    const active = store.getActiveBench();
+    store.assignHunk(active.id, makeHunk('src/a.ts', 'h1'));
+    expect(store.getBench(active.id)?.files.get('src/a.ts')).toHaveLength(1);
+  });
+
+  it('moves a hunk between benches', () => {
+    const store = new BenchStore(undefined, '/r');
+    const a = store.getActiveBench();
+    const b = store.createBench('B');
+    const hunk = makeHunk('src/a.ts', 'h1');
+    store.assignHunk(a.id, hunk);
+    store.moveHunk(a.id, b.id, 'src/a.ts', 'h1');
+    expect(store.getBench(a.id)?.files.has('src/a.ts')).toBe(false);
+    expect(store.getBench(b.id)?.files.get('src/a.ts')).toHaveLength(1);
+  });
+
+  it('removes a hunk', () => {
+    const store = new BenchStore(undefined, '/r');
+    const a = store.getActiveBench();
+    store.assignHunk(a.id, makeHunk('src/a.ts', 'h1'));
+    store.removeHunk(a.id, 'src/a.ts', 'h1');
+    expect(store.getBench(a.id)?.files.has('src/a.ts')).toBe(false);
+  });
+
+  it('keeps file entry when removing one hunk but leaving others', () => {
+    const store = new BenchStore(undefined, '/r');
+    const a = store.getActiveBench();
+    store.assignHunk(a.id, makeHunk('src/a.ts', 'h1'));
+    store.assignHunk(a.id, makeHunk('src/a.ts', 'h2'));
+    store.removeHunk(a.id, 'src/a.ts', 'h1');
+    expect(store.getBench(a.id)?.files.get('src/a.ts')).toHaveLength(1);
+  });
+
+  it('fires hunks-changed event on mutations', () => {
+    const store = new BenchStore(undefined, '/r');
+    const a = store.getActiveBench();
+    const events: string[] = [];
+    store.onChange((e) => events.push(e.type));
+    store.assignHunk(a.id, makeHunk('src/a.ts', 'h1'));
+    store.removeHunk(a.id, 'src/a.ts', 'h1');
+    expect(events.filter((e) => e === 'hunks-changed')).toHaveLength(2);
   });
 });

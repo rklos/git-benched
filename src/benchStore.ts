@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
-  Bench, BenchId, BenchChangeEvent, StoreState,
+  Bench, BenchId, BenchChangeEvent, StoreState, HunkRef, FilePath,
 } from './types';
 
 type Listener = (event: BenchChangeEvent) => void;
@@ -100,6 +100,58 @@ export class BenchStore {
   public onChange(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  public assignHunk(benchId: BenchId, hunk: HunkRef): void {
+    const bench = this.state.benches.get(benchId);
+    if (!bench) { throw new Error(`Bench ${benchId} not found`); }
+    const existing = bench.files.get(hunk.filePath) ?? [];
+    const withoutDup = existing.filter((h) => h.hunkId !== hunk.hunkId);
+    bench.files.set(hunk.filePath, [ ...withoutDup, hunk ]);
+    this.emit({ type: 'hunks-changed', benchId });
+  }
+
+  public removeHunk(benchId: BenchId, filePath: FilePath, hunkId: string): void {
+    const bench = this.state.benches.get(benchId);
+    if (!bench) { return; }
+    const hunks = bench.files.get(filePath);
+    if (!hunks) { return; }
+    const remaining = hunks.filter((h) => h.hunkId !== hunkId);
+    if (remaining.length === 0) {
+      bench.files.delete(filePath);
+    } else {
+      bench.files.set(filePath, remaining);
+    }
+    this.emit({ type: 'hunks-changed', benchId });
+  }
+
+  public moveHunk(
+    fromBenchId: BenchId,
+    toBenchId: BenchId,
+    filePath: FilePath,
+    hunkId: string,
+  ): HunkRef | undefined {
+    const from = this.state.benches.get(fromBenchId);
+    const to = this.state.benches.get(toBenchId);
+    if (!from || !to) { return undefined; }
+    const hunks = from.files.get(filePath);
+    const hunk = hunks?.find((h) => h.hunkId === hunkId);
+    if (!hunk) { return undefined; }
+    this.removeHunk(fromBenchId, filePath, hunkId);
+    this.assignHunk(toBenchId, hunk);
+    return hunk;
+  }
+
+  public findHunk(filePath: FilePath, hunkId: string): { benchId: BenchId; hunk: HunkRef } | undefined {
+    const entries = Array.from(this.state.benches.values());
+    const found = entries
+      .map((bench) => {
+        const hunks = bench.files.get(filePath);
+        const hunk = hunks?.find((h) => h.hunkId === hunkId);
+        return hunk ? { benchId: bench.id, hunk } : undefined;
+      })
+      .find((x) => x !== undefined);
+    return found;
   }
 
   private emit(event: BenchChangeEvent): void {
