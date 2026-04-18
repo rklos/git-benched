@@ -16,3 +16,50 @@ describe('BenchStore construction', () => {
     expect(active.isDefault).toBe(true);
   });
 });
+
+describe('BenchStore CRUD', () => {
+  it('creates a named bench', () => {
+    const store = new BenchStore(undefined, '/r');
+    const created = store.createBench('Feature A');
+    expect(store.getBenches()).toHaveLength(2);
+    expect(store.getBench(created.id)?.name).toBe('Feature A');
+    expect(store.getBench(created.id)?.isDefault).toBe(false);
+  });
+
+  it('renames a bench', () => {
+    const store = new BenchStore(undefined, '/r');
+    const created = store.createBench('Old');
+    store.renameBench(created.id, 'New');
+    expect(store.getBench(created.id)?.name).toBe('New');
+  });
+
+  it('can rename the Default Bench', () => {
+    const store = new BenchStore(undefined, '/r');
+    const def = store.getDefaultBench();
+    store.renameBench(def.id, 'My Default');
+    expect(store.getDefaultBench().name).toBe('My Default');
+  });
+
+  it('deletes a non-default bench', () => {
+    const store = new BenchStore(undefined, '/r');
+    const b = store.createBench('Tmp');
+    store.deleteBench(b.id);
+    expect(store.getBenches()).toHaveLength(1);
+  });
+
+  it('refuses to delete the Default Bench', () => {
+    const store = new BenchStore(undefined, '/r');
+    const def = store.getDefaultBench();
+    expect(() => store.deleteBench(def.id)).toThrow(/default/i);
+  });
+
+  it('fires bench-created / renamed / deleted events', () => {
+    const store = new BenchStore(undefined, '/r');
+    const events: string[] = [];
+    store.onChange((e) => events.push(e.type));
+    const b = store.createBench('X');
+    store.renameBench(b.id, 'Y');
+    store.deleteBench(b.id);
+    expect(events).toEqual([ 'bench-created', 'bench-renamed', 'bench-deleted' ]);
+  });
+});

@@ -52,6 +52,41 @@ export class BenchStore {
     return defaultBench;
   }
 
+  public createBench(name: string): Bench {
+    const bench: Bench = {
+      id: randomUUID(),
+      name,
+      isDefault: false,
+      files: new Map(),
+      createdAt: Date.now(),
+    };
+    this.state.benches.set(bench.id, bench);
+    this.emit({ type: 'bench-created', benchId: bench.id });
+    return bench;
+  }
+
+  public renameBench(id: BenchId, name: string): void {
+    const bench = this.state.benches.get(id);
+    if (!bench) { return; }
+    bench.name = name;
+    this.emit({ type: 'bench-renamed', benchId: id });
+  }
+
+  public deleteBench(id: BenchId): void {
+    const bench = this.state.benches.get(id);
+    if (!bench) { return; }
+    if (bench.isDefault) {
+      throw new Error('Cannot delete the Default Bench');
+    }
+    if (this.state.activeBenchId === id) {
+      const fallback = this.getDefaultBench();
+      this.state.activeBenchId = fallback.id;
+      this.emit({ type: 'active-changed', previous: id, next: fallback.id });
+    }
+    this.state.benches.delete(id);
+    this.emit({ type: 'bench-deleted', benchId: id });
+  }
+
   public onChange(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
