@@ -3,6 +3,7 @@ import type { BenchStore } from '../benchStore';
 import type { ShelveService } from '../shelveService';
 import type { GitOperations } from '../gitOperations';
 import { registerBenchCrudCommands } from './benchCrud';
+import { registerAssignmentCommands } from './assignment';
 
 export interface CommandDeps {
   store: BenchStore;
@@ -15,4 +16,5 @@ export function registerAllCommands(
   deps: CommandDeps,
 ): void {
   registerBenchCrudCommands(context, deps.store, deps.shelve, deps.git);
+  registerAssignmentCommands(context, deps.store, deps.shelve, deps.git);
 }
