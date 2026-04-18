@@ -17,9 +17,130 @@
     "intellij",
     "scm"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "views": {
+      "scm": [
+        {
+          "id": "git-benched.benchesView",
+          "name": "Benches",
+          "when": "git-benched.hasRepository",
+          "contextualTitle": "Git Benched"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "git-benched.createBench",
+        "title": "Create Bench",
+        "category": "Git Benched",
+        "icon": "$(add)"
+      },
+      {
+        "command": "git-benched.renameBench",
+        "title": "Rename Bench",
+        "category": "Git Benched"
+      },
+      {
+        "command": "git-benched.deleteBench",
+        "title": "Delete Bench",
+        "category": "Git Benched",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "git-benched.activateBench",
+        "title": "Activate Bench",
+        "category": "Git Benched"
+      },
+      {
+        "command": "git-benched.commitBench",
+        "title": "Commit Bench",
+        "category": "Git Benched",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "git-benched.stageBench",
+        "title": "Stage Bench",
+        "category": "Git Benched"
+      },
+      {
+        "command": "git-benched.moveFileToBench",
+        "title": "Move to Bench...",
+        "category": "Git Benched"
+      },
+      {
+        "command": "git-benched.assignSelectionToBench",
+        "title": "Assign Selected Lines to Bench...",
+        "category": "Git Benched"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "git-benched.createBench",
+          "when": "view == git-benched.benchesView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "git-benched.commitBench",
+          "when": "view == git-benched.benchesView && viewItem =~ /^bench-/",
+          "group": "inline"
+        },
+        {
+          "command": "git-benched.activateBench",
+          "when": "view == git-benched.benchesView && viewItem =~ /-inactive$/",
+          "group": "1_action"
+        },
+        {
+          "command": "git-benched.stageBench",
+          "when": "view == git-benched.benchesView && viewItem =~ /^bench-/",
+          "group": "1_action"
+        },
+        {
+          "command": "git-benched.renameBench",
+          "when": "view == git-benched.benchesView && viewItem =~ /^bench-/",
+          "group": "2_modify"
+        },
+        {
+          "command": "git-benched.deleteBench",
+          "when": "view == git-benched.benchesView && viewItem =~ /^bench-regular/",
+          "group": "2_modify"
+        },
+        {
+          "command": "git-benched.moveFileToBench",
+          "when": "view == git-benched.benchesView && viewItem == file",
+          "group": "1_action"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "git-benched.assignSelectionToBench",
+          "when": "editorHasSelection && git-benched.hasRepository",
+          "group": "git-benched"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Git Benched",
+      "properties": {
+        "git-benched.confirmDeleteNonEmptyBench": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask for confirmation when deleting a bench that still contains files."
+        },
+        "git-benched.debug.enableLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write verbose diagnostics to the Git Benched output channel."
+        }
+      }
+    }
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
