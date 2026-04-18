@@ -222,3 +222,30 @@ export async function activateBench(
     conflicts: unshelve.conflicts,
   };
 }
+
+export interface SelectionArgs {
+  benchId: BenchId;
+  filePath: string;
+  startLine: number; // 1-based, inclusive
+  endLine: number; // 1-based, inclusive
+}
+
+export async function shelveSelection(
+  args: SelectionArgs,
+  deps: {
+    store: BenchStore;
+    shelve: ShelveService;
+    git: GitOperations;
+  },
+): Promise<HunkRef[]> {
+  const diff = await deps.git.diffHead([ args.filePath ]);
+  const allHunks = parseHunks(diff);
+  const selected = allHunks.filter((h) => {
+    const hunkStart = h.lineRange.startNew;
+    const hunkEnd = hunkStart + h.lineRange.countNew - 1;
+    return !(hunkEnd < args.startLine || hunkStart > args.endLine);
+  });
+  if (selected.length === 0) { return []; }
+  const hunkIds = selected.map((h) => hunkIdFromPatch(h));
+  return shelveHunks({ benchId: args.benchId, filePath: args.filePath, hunkIds }, deps);
+}
