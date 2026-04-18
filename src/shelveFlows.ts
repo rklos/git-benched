@@ -139,3 +139,86 @@ export async function unshelveBench(
 
   return { benchId, appliedCount: applied, conflicts };
 }
+
+async function collectStagedPaths(
+  git: GitOperations,
+  bench: { files: Map<string, unknown> },
+): Promise<string[]> {
+  const porcelain = await git.statusPorcelain();
+  const entries = porcelain.split('\0').filter((e) => e.length >= 3);
+  return entries
+    .map((entry) => {
+      const statusPart = entry.slice(0, 2);
+      const pathPart = entry.slice(3);
+      if (statusPart[0] !== ' ' && statusPart[0] !== '?' && bench.files.has(pathPart)) {
+        return pathPart;
+      }
+      return undefined;
+    })
+    .filter((p): p is string => p !== undefined);
+}
+
+export interface ActivateResult {
+  previousBenchId: BenchId;
+  newBenchId: BenchId;
+  shelvedCount: number;
+  unshelvedCount: number;
+  conflicts: UnshelveResult['conflicts'];
+}
+
+export async function activateBench(
+  targetBenchId: BenchId,
+  deps: {
+    store: BenchStore;
+    shelve: ShelveService;
+    git: GitOperations;
+  },
+): Promise<ActivateResult> {
+  const currentActive = deps.store.getActiveBench();
+  if (currentActive.id === targetBenchId) {
+    return {
+      previousBenchId: currentActive.id,
+      newBenchId: targetBenchId,
+      shelvedCount: 0,
+      unshelvedCount: 0,
+      conflicts: [],
+    };
+  }
+
+  // 1. Unstage anything staged from current active
+  const stagedPaths = await collectStagedPaths(deps.git, currentActive);
+  if (stagedPaths.length > 0) {
+    await deps.git.resetPaths(stagedPaths);
+  }
+
+  // 2. Shelve all of current active's hunks
+  const currentFiles = Array.from(currentActive.files.keys());
+  const shelvedCount = await currentFiles.reduce<Promise<number>>(
+    async (accPromise, filePath) => {
+      const count = await accPromise;
+      const refs = await shelveHunks(
+        { benchId: currentActive.id, filePath },
+        deps,
+      );
+      return count + refs.length;
+    },
+    Promise.resolve(0),
+  );
+
+  // 3. Reset all affected files to HEAD (belt-and-suspenders)
+  await deps.git.checkoutHead(currentFiles);
+
+  // 4. Unshelve target bench
+  const unshelve = await unshelveBench(targetBenchId, deps);
+
+  // 5. Swap pointer
+  deps.store.setActiveBench(targetBenchId);
+
+  return {
+    previousBenchId: currentActive.id,
+    newBenchId: targetBenchId,
+    shelvedCount,
+    unshelvedCount: unshelve.appliedCount,
+    conflicts: unshelve.conflicts,
+  };
+}
