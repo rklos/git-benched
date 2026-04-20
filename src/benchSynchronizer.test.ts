@@ -45,4 +45,26 @@ describe('BenchSynchronizer', () => {
     await sync.reconcile();
     expect(store.getBench(active.id)?.files.has('src/a.ts')).toBe(false);
   });
+
+  it('does NOT remove hunks from inactive benches when they are absent from the working-tree diff', async () => {
+    const store = new BenchStore(undefined, '/r');
+    const active = store.getActiveBench();
+    const inactive = store.createBench('Feature A');
+    // Put a hunk in the inactive bench — it's shelved, so it's NOT in the working-tree diff.
+    store.assignHunk(inactive.id, {
+      hunkId: 'h_shelved',
+      filePath: 'src/a.ts',
+      shelfPath: '/tmp/h_shelved.patch',
+      lineRange: { startOld: 1, countOld: 1, startNew: 1, countNew: 1 },
+      preview: '',
+      fileStatus: 'modified',
+    });
+    const git = stubGit([]);
+    const sync = new BenchSynchronizer(store, git);
+    await sync.reconcile();
+    // Inactive bench's shelved hunk must survive reconciliation.
+    expect(store.getBench(inactive.id)?.files.get('src/a.ts')).toHaveLength(1);
+    // Active bench should be empty (it had nothing to begin with).
+    expect(store.getBench(active.id)?.files.size).toBe(0);
+  });
 });

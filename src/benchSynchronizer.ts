@@ -22,20 +22,20 @@ export class BenchSynchronizer {
       currentByKey.set(`${h.filePath}|${hunkIdFromPatch(h)}`, h);
     });
 
-    // Remove hunks not in current diff
-    this.store.getBenches().forEach((bench) => {
-      Array.from(bench.files.entries()).forEach(([ filePath, hunks ]) => {
-        hunks.forEach((hunk) => {
-          const key = `${filePath}|${hunk.hunkId}`;
-          if (!currentByKey.has(key)) {
-            this.store.removeHunk(bench.id, filePath, hunk.hunkId);
-          }
-        });
+    // Remove stale hunks from the ACTIVE bench only.
+    // Inactive benches hold shelved patches (on disk), not working-tree modifications —
+    // their absence from `git diff HEAD` is expected and must not trigger removal.
+    const activeBench = this.store.getActiveBench();
+    Array.from(activeBench.files.entries()).forEach(([ filePath, hunks ]) => {
+      hunks.forEach((hunk) => {
+        const key = `${filePath}|${hunk.hunkId}`;
+        if (!currentByKey.has(key)) {
+          this.store.removeHunk(activeBench.id, filePath, hunk.hunkId);
+        }
       });
     });
 
     // Add new hunks to active bench
-    const active = this.store.getActiveBench();
     Array.from(currentByKey.entries()).forEach(([ key, hunk ]) => {
       const sep = key.indexOf('|');
       const filePath = key.slice(0, sep);
@@ -51,7 +51,7 @@ export class BenchSynchronizer {
           fileStatus: hunk.fileStatus,
           renamedFrom: hunk.renamedFrom,
         };
-        this.store.assignHunk(active.id, ref);
+        this.store.assignHunk(activeBench.id, ref);
       }
     });
   }
